@@ -1,5 +1,5 @@
 import express from 'express';
-import axios from 'axios';
+import https from 'node:https';
 import { body, validationResult } from 'express-validator';
 
 import Review from '../models/review.js';
@@ -12,15 +12,17 @@ const router = express.Router();
 export const PR_URL_REGEX = /github\.com\/([^/]+)\/([^/]+)\/pull\/(\d+)/i;
 
 const derivePriority = (linesChanged) => {
-  if (linesChanged > 400) return 'High';
-  if (linesChanged > 100) return 'Medium';
+  if (linesChanged >= 200) return 'High';
+  if (linesChanged >= 50) return 'Medium';
   return 'Low';
 };
 
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.status(400).json({ errors: errors.array() });
+    const details = errors.array();
+    const firstMessage = details[0]?.msg || 'Validation failed';
+    return res.status(400).json({ message: firstMessage, errors: details });
   }
   return next();
 };
@@ -49,6 +51,53 @@ const resolveGithubToken = async (user, overrideToken) => {
   return stored;
 };
 
+const fetchPullRequest = ({ owner, repo, prNumber, token }) =>
+  new Promise((resolve, reject) => {
+    const request = https.request(
+      {
+        hostname: 'api.github.com',
+        path: `/repos/${owner}/${repo}/pulls/${prNumber}`,
+        method: 'GET',
+        headers: {
+          Accept: 'application/vnd.github+json',
+          Authorization: `Bearer ${token}`,
+          'User-Agent': 'ReviewMate-Backend'
+        }
+      },
+      (response) => {
+        let rawData = '';
+        response.setEncoding('utf8');
+        response.on('data', (chunk) => {
+          rawData += chunk;
+        });
+        response.on('end', () => {
+          if (response.statusCode && response.statusCode >= 200 && response.statusCode < 300) {
+            try {
+              resolve(rawData ? JSON.parse(rawData) : {});
+            } catch (error) {
+              reject(buildError('GitHub API call failed', 502, 'Invalid JSON response from GitHub'));
+            }
+            return;
+          }
+
+          let errorMessage;
+          try {
+            errorMessage = rawData ? JSON.parse(rawData).message : undefined;
+          } catch (parseError) {
+            errorMessage = rawData || (parseError instanceof Error ? parseError.message : 'Unknown error');
+          }
+          reject(buildError('GitHub API call failed', response.statusCode || 500, errorMessage));
+        });
+      }
+    );
+
+    request.on('error', (error) => {
+      reject(buildError(error.message || 'Failed to connect to GitHub', 503));
+    });
+
+    request.end();
+  });
+
 export const upsertPullRequest = async ({ user, prUrl, githubTokenOverride }) => {
   const matches = prUrl.match(PR_URL_REGEX);
   if (!matches) {
@@ -62,18 +111,7 @@ export const upsertPullRequest = async ({ user, prUrl, githubTokenOverride }) =>
   const tokenToUse = await resolveGithubToken(user, githubTokenOverride);
 
   try {
-    const response = await axios.get(
-      `https://api.github.com/repos/${owner}/${repo}/pulls/${prNumber}`,
-      {
-        headers: {
-          Accept: 'application/vnd.github+json',
-          Authorization: `Bearer ${tokenToUse}`,
-          'User-Agent': 'ReviewMate-Backend'
-        }
-      }
-    );
-
-    const prData = response.data;
+    const prData = await fetchPullRequest({ owner, repo, prNumber, token: tokenToUse });
     const linesChanged = (prData.additions || 0) + (prData.deletions || 0);
     const reviewPayload = {
       author: prData.user?.login || 'unknown',
@@ -113,10 +151,16 @@ export const upsertPullRequest = async ({ user, prUrl, githubTokenOverride }) =>
     emitReviewEvent(user._id, 'review.created', review);
     return { review, action: 'created' };
   } catch (error) {
-    if (axios.isAxiosError(error) && error.response) {
-      throw buildError('GitHub API call failed', error.response.status, error.response.data?.message || 'Unknown error');
+    if (error?.status === 503) {
+      const existing = await Review.findOne(filter);
+      if (existing) {
+        return { review: existing, action: 'unchanged' };
+      }
     }
-    throw error;
+    if (error?.status) {
+      throw error;
+    }
+    throw buildError('GitHub API call failed', 500, error instanceof Error ? error.message : undefined);
   }
 };
 
@@ -128,7 +172,7 @@ router.post(
       .notEmpty()
       .withMessage('prUrl is required')
       .matches(PR_URL_REGEX)
-      .withMessage('Provide a valid GitHub PR URL'),
+      .withMessage('Invalid GitHub PR URL'),
     body('githubToken')
       .optional()
       .isString()
@@ -154,6 +198,8 @@ router.post(
       }
       if (status === 500) {
         console.error('Unexpected error while fetching PR:', error.message);
+      } else {
+        console.warn('Fetch PR request failed:', status, error.message);
       }
       return res.status(status).json(payload);
     }
