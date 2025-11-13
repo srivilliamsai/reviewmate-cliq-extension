@@ -1,0 +1,161 @@
+{
+  "extension_name": "ReviewMate",
+  "extension_display_name": "ReviewMate",
+  "extension_namespace": "reviewmate",
+  "version": "0.1.0",
+  "min_cliq_version": "6.0",
+  "description": "ReviewMate accelerates code reviews with smart reviewer assignment, queue tracking, and a live dashboard for GitHub/GitLab pull requests.",
+  "publisher": {
+    "name": "ReviewMate Labs",
+    "email": "devrel@reviewmate.example",
+    "url": "https://reviewmate.example"
+  },
+  "categories": [
+    "Productivity",
+    "Developer Tools"
+  ],
+  "config": {
+    "scopes": [
+      "ZohoCliq.Bot.CREATE",
+      "ZohoCliq.Bot.READ",
+      "ZohoCliq.Widget.CREATE",
+      "ZohoCliq.Widget.READ",
+      "ZohoCliq.Webhook.CREATE"
+    ],
+    "variables": [
+      {
+        "name": "GITHUB_PAT",
+        "type": "password",
+        "label": "GitHub Personal Access Token",
+        "description": "Required for accessing private repositories via the GitHub REST API (scopes: repo, read:user).",
+        "required": true
+      },
+      {
+        "name": "GITLAB_PAT",
+        "type": "password",
+        "label": "GitLab Personal Access Token",
+        "description": "Optional token for fetching GitLab merge requests (scopes: api).",
+        "required": false
+      },
+      {
+        "name": "ENABLE_SOUND_ALERTS",
+        "type": "boolean",
+        "label": "Enable dashboard sound notifications",
+        "default_value": true,
+        "required": false
+      }
+    ]
+  },
+  "assets": {
+    "logo": "assets/reviewmate-logo.png"
+  },
+  "functions": [
+    {
+      "name": "bot_handler",
+      "display_name": "ReviewMate Bot Handler",
+      "type": "bot",
+      "path": "deluge/bot_handler.ds"
+    },
+    {
+      "name": "dashboard_widget_handler",
+      "display_name": "ReviewMate Widget Handler",
+      "type": "widget",
+      "path": "deluge/widget_handler.ds"
+    },
+    {
+      "name": "setup_db",
+      "display_name": "Database Bootstrap",
+      "type": "serverless",
+      "path": "deluge/setup_db.ds"
+    }
+  ],
+  "cliq": {
+    "bots": [
+      {
+        "name": "ReviewMate",
+        "type": "application",
+        "short_description": "Code review accelerator bot.",
+        "long_description": "Collect pull requests, auto-assign reviewers, and keep everyone on track with ReviewMate.",
+        "handler": "bot_handler",
+        "command_suggestions": [
+          {
+            "name": "/reviewme",
+            "description": "Submit a pull request for reviewer assignment.",
+            "args": "<pr_url>"
+          },
+          {
+            "name": "/reviewqueue",
+            "description": "Show pull requests waiting for your review."
+          },
+          {
+            "name": "/reviewstatus",
+            "description": "Track pull requests you submitted."
+          },
+          {
+            "name": "/quickreview",
+            "description": "AI-generated summary and checklist for a PR.",
+            "args": "[pr_url]"
+          }
+        ]
+      }
+    ],
+    "widgets": [
+      {
+        "name": "ReviewMate Dashboard",
+        "type": "sidebar",
+        "location": [
+          "left"
+        ],
+        "refresh_interval": 30,
+        "handler": "dashboard_widget_handler",
+        "html_path": "widgets/widget.html"
+      }
+    ],
+    "databases": [
+      {
+        "name": "code_reviews",
+        "label": "Code Reviews",
+        "description": "Tracks pull requests, reviewers, and status for ReviewMate.",
+        "schema": [
+          {
+            "name": "pr_id",
+            "type": "string",
+            "is_primary_key": true
+          },
+          {
+            "name": "pr_url",
+            "type": "string"
+          },
+          {
+            "name": "author",
+            "type": "string"
+          },
+          {
+            "name": "reviewers",
+            "type": "list"
+          },
+          {
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "name": "created_at",
+            "type": "datetime"
+          },
+          {
+            "name": "files_changed",
+            "type": "integer"
+          },
+          {
+            "name": "lines_changed",
+            "type": "integer"
+          },
+          {
+            "name": "priority",
+            "type": "string"
+          }
+        ]
+      }
+    ]
+  }
+}

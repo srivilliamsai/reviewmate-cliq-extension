@@ -1,0 +1,37 @@
+# General
+.DS_Store
+Thumbs.db
+
+# Node / npm
+node_modules/
+*.log
+npm-debug.log*
+pnpm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Build artifacts
+dist/
+build/
+.parcel-cache/
+.turbo/
+
+# Environment & config
+.env
+.env.local
+.env.*.local
+
+# Coverage / test output
+coverage/
+.nyc_output/
+
+# Vite / temporary
+*.tsbuildinfo
+vite.config.ts.timestamp*
+
+# Docker / volumes
+docker-data/
+
+# Misc
+.vscode/
+*.bak

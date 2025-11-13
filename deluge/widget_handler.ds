@@ -1,0 +1,5 @@
+/**
+ * ReviewMate widget data provider placeholder.
+ * TODO: Fetch real-time queues and stats for the dashboard.
+ */
+return {"widget" : "pending"};

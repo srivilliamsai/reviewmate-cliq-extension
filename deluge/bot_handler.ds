@@ -1,0 +1,5 @@
+/**
+ * ReviewMate Bot Handler
+ * TODO: Implement /reviewme, /reviewqueue, /reviewstatus, /quickreview logic.
+ */
+return {"ok" : true};
