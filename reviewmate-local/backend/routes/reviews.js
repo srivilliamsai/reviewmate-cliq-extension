@@ -179,13 +179,21 @@ router.post('/batch', upload.single('file'), async (req, res) => {
   return res.status(202).json({ batchId, total });
 });
 
+const buildPrIdFromParams = (req) => `${req.params.owner}/${req.params.prId}`;
+
+const prIdValidators = [
+  param('owner').isString().notEmpty().withMessage('owner is required'),
+  param('prId').isString().notEmpty().withMessage('prId is required')
+];
+
 router.get(
-  '/:prId',
-  [param('prId').isString().notEmpty().withMessage('prId is required')],
+  '/:owner/:prId',
+  prIdValidators,
   handleValidation,
   async (req, res) => {
     try {
-      const review = await Review.findOne({ prId: req.params.prId, user: req.user._id });
+      const prId = buildPrIdFromParams(req);
+      const review = await Review.findOne({ prId, user: req.user._id });
       if (!review) {
         return res.status(404).json({ message: 'Review not found' });
       }
@@ -198,17 +206,18 @@ router.get(
 );
 
 router.delete(
-  '/:prId',
-  [param('prId').isString().notEmpty().withMessage('prId is required')],
+  '/:owner/:prId',
+  prIdValidators,
   handleValidation,
   async (req, res) => {
     try {
-      const result = await Review.findOneAndDelete({ prId: req.params.prId, user: req.user._id });
+      const prId = buildPrIdFromParams(req);
+      const result = await Review.findOneAndDelete({ prId, user: req.user._id });
       if (!result) {
         return res.status(404).json({ message: 'Review not found' });
       }
-      emitReviewEvent(req.user._id, 'review.deleted', { prId: req.params.prId });
-      return res.json({ message: 'Review deleted', prId: req.params.prId });
+      emitReviewEvent(req.user._id, 'review.deleted', { prId });
+      return res.json({ message: 'Review deleted', prId });
     } catch (error) {
       console.error('Failed to delete review:', error.message);
       return res.status(500).json({ message: 'Internal server error' });

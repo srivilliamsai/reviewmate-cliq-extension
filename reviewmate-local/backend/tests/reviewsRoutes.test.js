@@ -52,7 +52,7 @@ describe('Review routes', () => {
 
   it('fetches review by id', async () => {
     const res = await request(app)
-      .get('/api/reviews/org/repo#1')
+      .get(`/api/reviews/org/${encodeURIComponent('repo#1')}`)
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
     expect(res.body.title).toBe('Sample');
@@ -60,14 +60,14 @@ describe('Review routes', () => {
 
   it('returns 404 for missing review', async () => {
     await request(app)
-      .get('/api/reviews/org/repo#999')
+      .get(`/api/reviews/org/${encodeURIComponent('repo#999')}`)
       .set('Authorization', `Bearer ${authToken}`)
       .expect(404);
   });
 
   it('deletes review by id', async () => {
     await request(app)
-      .delete('/api/reviews/org/repo#1')
+      .delete(`/api/reviews/org/${encodeURIComponent('repo#1')}`)
       .set('Authorization', `Bearer ${authToken}`)
       .expect(200);
     const remaining = await Review.find();
